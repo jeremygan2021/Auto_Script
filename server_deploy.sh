@@ -113,27 +113,43 @@ deploy_app() {
     }
     
     # 备份旧版本（如果存在）
-    if [ -d "build" ]; then
-        log_info "备份旧版本..."
-        rm -rf build.backup 2>/dev/null || true
-        mv build build.backup || log_warning "备份失败，继续部署..."
-    fi
+    for backup_dir in "build" "out"; do
+        if [ -d "$backup_dir" ]; then
+            log_info "备份旧版本 ($backup_dir)..."
+            rm -rf "${backup_dir}.backup" 2>/dev/null || true
+            mv "$backup_dir" "${backup_dir}.backup" || log_warning "备份 $backup_dir 失败，继续部署..."
+        fi
+    done
     
     # 解压新版本
     log_info "解压新版本..."
     if ! unzip -o "$ZIP_FILE"; then
         log_error "解压失败"
         # 如果有备份，尝试恢复
-        if [ -d "build.backup" ]; then
-            log_info "尝试恢复备份版本..."
-            mv build.backup build
-        fi
+        for backup_dir in "build.backup" "out.backup"; do
+            if [ -d "$backup_dir" ]; then
+                log_info "尝试恢复备份版本 ($backup_dir)..."
+                mv "$backup_dir" "${backup_dir%.backup}"
+            fi
+        done
         return 1
     fi
     
-    # 检查解压后的build目录
-    cd "$REMOTE_PROJECT_DIR/build" || {
-        log_error "解压后的build目录不存在"
+    # 检查解压后的目录（优先检查out，然后检查build）
+    local app_dir=""
+    if [ -d "$REMOTE_PROJECT_DIR/out" ]; then
+        app_dir="$REMOTE_PROJECT_DIR/out"
+        log_info "发现 out 目录，使用该目录作为应用根目录"
+    elif [ -d "$REMOTE_PROJECT_DIR/build" ]; then
+        app_dir="$REMOTE_PROJECT_DIR/build" 
+        log_info "发现 build 目录，使用该目录作为应用根目录"
+    else
+        log_error "解压后未找到 out 或 build 目录"
+        return 1
+    fi
+    
+    cd "$app_dir" || {
+        log_error "无法进入应用目录: $app_dir"
         return 1
     }
     
@@ -173,7 +189,7 @@ deploy_app() {
     
     # 清理部署文件
     rm -f "$REMOTE_PROJECT_DIR/$ZIP_FILE"
-    rm -rf "$REMOTE_PROJECT_DIR/build.backup" 2>/dev/null || true
+    rm -rf "$REMOTE_PROJECT_DIR/build.backup" "$REMOTE_PROJECT_DIR/out.backup" 2>/dev/null || true
     
     log_success "应用部署完成"
     return 0
@@ -183,8 +199,19 @@ deploy_app() {
 start_app() {
     log_info "启动应用..."
     
-    cd "$REMOTE_PROJECT_DIR/build" || {
-        log_error "无法进入build目录"
+    # 检查应用目录（优先检查out，然后检查build）
+    local app_dir=""
+    if [ -d "$REMOTE_PROJECT_DIR/out" ]; then
+        app_dir="$REMOTE_PROJECT_DIR/out"
+    elif [ -d "$REMOTE_PROJECT_DIR/build" ]; then
+        app_dir="$REMOTE_PROJECT_DIR/build"
+    else
+        log_error "未找到应用目录 (out 或 build)"
+        return 1
+    fi
+    
+    cd "$app_dir" || {
+        log_error "无法进入应用目录: $app_dir"
         return 1
     }
     

@@ -80,7 +80,7 @@ cd "$BUILD_DIR" || {
 echo -e "\n${BLUE}╔══════════════════════════════════════╗
 ║          🧹 清理构建文件          ║
 ╚══════════════════════════════════════╝\n${NC}\n${YELLOW}🧹 清理历史构建文件...${NC}"
-rm -rf build "$ZIP_FILE" || {
+rm -rf build out .next "$ZIP_FILE" || {
   echo -e "${RED}❌ 清理失败，错误代码: $?${NC}"
   exit 1
 }
@@ -95,10 +95,23 @@ echo -e "${GREEN}✅ 项目构建成功${NC}\n${BLUE}═════════
 echo -e "\n${BLUE}╔══════════════════════════════════════╗
 ║          📦 压缩构建文件          ║
 ╚══════════════════════════════════════╝\n${NC}\n${YELLOW}📦 正在压缩构建文件...${NC}"
-zip -r "$ZIP_FILE" build || {
-  echo -e "${RED}❌ 文件压缩失败，错误代码: $?${NC}"
-  exit 1
-}
+# 检查构建输出目录
+if [ -d "out" ]; then
+    echo -e "${BLUE}📦 发现 out 目录，压缩 out 文件夹...${NC}"
+    zip -r "$ZIP_FILE" out || {
+      echo -e "${RED}❌ 文件压缩失败，错误代码: $?${NC}"
+      exit 1
+    }
+elif [ -d "build" ]; then
+    echo -e "${BLUE}📦 发现 build 目录，压缩 build 文件夹...${NC}"
+    zip -r "$ZIP_FILE" build || {
+      echo -e "${RED}❌ 文件压缩失败，错误代码: $?${NC}"
+      exit 1
+    }
+else
+    echo -e "${RED}❌ 错误：未找到构建输出目录 (out 或 build)${NC}"
+    exit 1
+fi
 echo -e "${GREEN}✅ 文件压缩成功 (${ZIP_FILE})${NC}\n${BLUE}════════════════════════════════════════${NC}"
 
 echo -e "\n${BLUE}╔══════════════════════════════════════╗
@@ -139,7 +152,7 @@ sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER" "
 # 清理远程服务器上的旧构建文件
 echo -e "${YELLOW}🧹 清理远程服务器上的旧构建文件...${NC}"
 sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER" "
-  rm -rf '$REMOTE_PROJECT_DIR/build' || echo '  ⚠️ 清理远程build目录失败（不影响部署）'
+  rm -rf '$REMOTE_PROJECT_DIR/build' '$REMOTE_PROJECT_DIR/out' '$REMOTE_PROJECT_DIR/.next' || echo '  ⚠️ 清理远程构建目录失败（不影响部署）'
   rm -f '$REMOTE_PROJECT_DIR/$ZIP_FILE' || echo '  ⚠️ 清理远程zip文件失败（不影响部署）'
 " || {
   echo -e "${YELLOW}⚠️ 远程清理失败（继续上传）${NC}"
@@ -220,21 +233,21 @@ echo -e "\n${BLUE}╔═══════════════════�
 ║          🗑️ 开始清理本地文件          ║
 ╚══════════════════════════════════════╝\n${NC}"
 
-# 删除本地的build.zip文件
-echo -e "${YELLOW}🗑️ 正在删除本地的 build.zip 文件...${NC}"
-rm -rf build.zip || {
-    echo -e "${RED}❌ 删除 build.zip 文件失败，错误代码: $?${NC}"
+# 删除本地的out.zip文件
+echo -e "${YELLOW}🗑️ 正在删除本地的 $ZIP_FILE 文件...${NC}"
+rm -rf "$ZIP_FILE" || {
+    echo -e "${RED}❌ 删除 $ZIP_FILE 文件失败，错误代码: $?${NC}"
     exit 1
 }
-echo -e "${GREEN}✅ build.zip 文件删除成功${NC}"
+echo -e "${GREEN}✅ $ZIP_FILE 文件删除成功${NC}"
 
-# 删除本地的build文件夹
-echo -e "${YELLOW}🗑️ 正在删除本地的 build 文件夹...${NC}"
-rm -rf build || {
-    echo -e "${RED}❌ 删除 build 文件夹失败，错误代码: $?${NC}"
+# 删除本地的构建文件夹
+echo -e "${YELLOW}🗑️ 正在删除本地的构建文件夹...${NC}"
+rm -rf build out .next || {
+    echo -e "${RED}❌ 删除构建文件夹失败，错误代码: $?${NC}"
     exit 1
 }
-echo -e "${GREEN}✅ build 文件夹删除成功${NC}"
+echo -e "${GREEN}✅ 构建文件夹删除成功${NC}"
 echo -e "\n${GREEN}
 ╔══════════════════════════════════════╗
 ║         🎉 部署流程全部完成！       ║
